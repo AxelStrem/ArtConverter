@@ -1,4 +1,3 @@
-#include "stdafx.h"
 #include <iterator>
 
 #include <vector> 
@@ -33,6 +32,11 @@
 #include <map>
 #include <algorithm>
 
+struct MissingFile
+{
+	std::string filename;
+};
+
 struct COLOR_3B
 {
 	BYTE b;
@@ -43,7 +47,7 @@ struct COLOR_3B
 
 bool in_palette(COLOR_3B col)
 {
-	return (col.a|col.b|col.g|col.r) != 0;
+	return (col.a | col.b | col.g | col.r) != 0;
 }
 
 struct CTABLE_255
@@ -89,12 +93,12 @@ class ArtFrame
 	bool Inc()
 	{
 		px++;
-		if (px >= header.width)
+		if (px >= static_cast<int>(header.width))
 		{
 			px = 0;
 			py++;
 		}
-		if (py >= header.height) return false;
+		if (py >= static_cast<int>(header.height)) return false;
 		if (py < 0) return false;
 		return true;
 	}
@@ -104,7 +108,7 @@ class ArtFrame
 		px--;
 		if (px < 0)
 		{
-			px = header.width-1;
+			px = header.width - 1;
 			py--;
 		}
 	}
@@ -116,7 +120,7 @@ class ArtFrame
 
 	bool EOD()
 	{
-		if (py < header.height) return false;
+		if (py < static_cast<int>(header.height)) return false;
 		return true;
 	}
 
@@ -143,7 +147,7 @@ public:
 		source.write(data, header.size);
 	}
 
-	
+
 	BYTE GetValue(int x, int y)
 	{
 		return pixels[y][x];
@@ -151,7 +155,7 @@ public:
 
 	BYTE GetValueI(int x, int y)
 	{
-		return pixels[pixels.size()-1-y][x];
+		return pixels[pixels.size() - 1 - y][x];
 	}
 
 	void SetValue(int x, int y, BYTE ch)
@@ -178,7 +182,7 @@ public:
 			char val = GetValueI(px, py);
 			if (!Inc())
 			{
-				data_compressed += 0x81;
+				data_compressed += static_cast<unsigned char>(0x81);
 				data_compressed += val;
 			}
 			else
@@ -204,13 +208,13 @@ public:
 						data_compressed += GetValueI(px, py);
 						clones++;
 					}
-					if ((!EOD())&&(GetValueI(px, py) == data_compressed.back()))
+					if ((!EOD()) && (GetValueI(px, py) == data_compressed.back()))
 					{
 						clones--;
 						data_compressed.resize(data_compressed.size() - 1);
 						Dec();
 					}
-					data_compressed[data_compressed.size() - clones - 1] = (0x80 + clones);
+					data_compressed[data_compressed.size() - clones - 1] = static_cast<unsigned char>(0x80) | static_cast<unsigned char>(clones);
 				}
 			}
 		} while (!EOD());
@@ -227,13 +231,13 @@ public:
 		{
 			data = new char[data_raw.size()];
 			memcpy(data, data_raw.c_str(), data_raw.size());
-			header.size = data_raw.size();
+			header.size = static_cast<DWORD>(data_raw.size());
 		}
 		else
 		{
 			data = new char[data_compressed.size()];
 			memcpy(data, data_compressed.c_str(), data_compressed.size());
-			header.size = data_compressed.size();
+			header.size = static_cast<DWORD>(data_compressed.size());
 		}
 	}
 
@@ -243,7 +247,7 @@ public:
 		Reset();
 		if (header.size < (header.height*header.width))
 		{
-			for (int p = 0; p < header.size; p++)
+			for (int p = 0; p < static_cast<int>(header.size); p++)
 			{
 				BYTE ch = static_cast<BYTE>(data[p]);
 				if (ch & 0x80)
@@ -271,7 +275,7 @@ public:
 		}
 		else
 		{
-			for (int p = 0; p < header.size; p++)
+			for (int p = 0; p < static_cast<int>(header.size); p++)
 			{
 				pixels[py][px] = data[p];
 				Inc();
@@ -300,10 +304,14 @@ public:
 	{
 		ifstream source;
 		source.open(fname, ios_base::binary);
+		
+		if (!source)
+			throw MissingFile{ fname };
+
 		source.read(reinterpret_cast<char*>(&header), sizeof(header));
 
-		animated = ((header.h0[0]&0x1)==0);
-		
+		animated = ((header.h0[0] & 0x1) == 0);
+
 		palettes = 0;
 		for (auto col : header.stupid_color)
 		{
@@ -363,8 +371,9 @@ public:
 		ifstream ctrl;
 		ctrl.open(fname);
 
-		if (ctrl)
-		{
+		if (!ctrl)
+			throw MissingFile{ fname };
+
 			string str;
 			ctrl >> str;
 			ctrl >> frames;
@@ -374,14 +383,14 @@ public:
 			header.frame_num_low = key_frame;
 			ctrl >> str;
 			ctrl >> palettes;
-			
+
 			ctrl >> str;//header:
 
-			LoadHeader(ctrl,header);
+			LoadHeader(ctrl, header);
 
 			animated = ((header.h0[0] & 0x1) == 0);
 			if (animated)
-				header.frame_num /= 8;			
+				header.frame_num /= 8;
 
 			palette_data.resize(palettes);
 
@@ -426,6 +435,10 @@ public:
 
 				std::ifstream src;
 				src.open(oss.str(), std::ios_base::binary);
+
+				if (!src)
+					throw MissingFile{oss.str()};
+
 				src.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
 				src.read(reinterpret_cast<char*>(&ihdr), sizeof(ihdr));
 
@@ -441,7 +454,7 @@ public:
 
 				int stride = ((width + 3) / 4) * 4;
 
-				while (offset < hdr.bfOffBits)
+				while (offset < static_cast<int>(hdr.bfOffBits))
 				{
 					offset++;
 					src.read(reinterpret_cast<char*>(&ch), 1);
@@ -454,7 +467,7 @@ public:
 					for (int j = 0; j < width; j++)
 					{
 						src.read(reinterpret_cast<char*>(&ch), 1);
-						af.SetValue(j,i,ch);
+						af.SetValue(j, i, ch);
 					}
 					offset = width;
 					while (offset < stride)
@@ -466,14 +479,13 @@ public:
 
 				src.close();
 			}
-		}
 	}
 
 	void SaveDWORD(ofstream& dst, DWORD data)
 	{
 		for (int i = 0; i < 8; i++)
 		{
-			BYTE ch = (data >> (i*4))&0xF;
+			BYTE ch = (data >> (i * 4)) & 0xF;
 			ch = "0123456789ABCDEF"[ch];
 			dst << ch;
 		}
@@ -521,10 +533,10 @@ public:
 	{
 		DWORD d;
 		LoadDWORD(dst, d);
-		data.a = (d & 0xFF000000) >> 24;
-		data.b = (d & 0x00FF0000) >> 16;
-		data.g = (d & 0x0000FF00) >>  8;
-		data.r = (d & 0x000000FF);
+		data.a = static_cast<BYTE>((d & 0xFF000000) >> 24);
+		data.b = static_cast<BYTE>((d & 0x00FF0000) >> 16);
+		data.g = static_cast<BYTE>((d & 0x0000FF00) >> 8 );
+		data.r = static_cast<BYTE>((d & 0x000000FF) >> 0 );
 	}
 
 	void SaveCOLOR(ofstream& dst, COLOR_4B col)
@@ -536,8 +548,8 @@ public:
 	void SaveHeader(ofstream& dst, ARTheader& h)
 	{
 		for (int i = 0; i < 3; i++)
-			SaveDWORD(dst,h.h0[i]);
-		for (int i = 0; i < 4; i++)	
+			SaveDWORD(dst, h.h0[i]);
+		for (int i = 0; i < 4; i++)
 			SaveCOLOR(dst, h.stupid_color[i]);
 		for (int i = 0; i < 8; i++)
 			SaveCOLOR(dst, h.palette_data1[i]);
@@ -567,13 +579,13 @@ public:
 		gss << fname << ".ini";
 		ofstream ctrl;
 		ctrl.open(gss.str());
-		ctrl << "frames: "   << frames   << "\r\n";
+		ctrl << "frames: " << frames << "\r\n";
 		ctrl << "key_frame: " << key_frame << "\r\n";
 		ctrl << "palettes: " << palettes << "\r\n";
 
 		ctrl << "header: \r\n";
 		SaveHeader(ctrl, header);
-		
+
 		ctrl << "\r\n";
 		for (int i = 0; i < palettes; i++)
 		{
@@ -587,8 +599,8 @@ public:
 
 		for (int i = 0; i < frames; i++)
 		{
-			if(animated)
-				ctrl << "frame " << (i/8)<<"_"<<(i%8) << ":\r\n";
+			if (animated)
+				ctrl << "frame " << (i / 8) << "_" << (i % 8) << ":\r\n";
 			else
 				ctrl << "frame " << i << ":\r\n";
 			ctrl << "center_x: " << frame_data[i].GetHeader().c_x << "\r\n";
@@ -603,19 +615,19 @@ public:
 		for (auto& af : frame_data)
 		{
 			ostringstream oss;
-			if(!animated)
+			if (!animated)
 				oss << fname << "_" << frame_num << ".bmp";
 			else
-				oss << fname << "_" << (frame_num/8) << (frame_num%8)<< ".bmp";
+				oss << fname << "_" << (frame_num / 8) << (frame_num % 8) << ".bmp";
 			frame_num++;
 
-			hdr.bfOffBits = sizeof(hdr)+sizeof(ihdr)+sizeof(CTABLE_255);
+			hdr.bfOffBits = sizeof(hdr) + sizeof(ihdr) + sizeof(CTABLE_255);
 			hdr.bfReserved1 = 28020;
 			hdr.bfReserved2 = 115;
 
 			int stride = ((af.GetHeader().width + 3) / 4) * 4;
 
-			hdr.bfSize = sizeof(hdr)+sizeof(ihdr)+sizeof(CTABLE_255)+af.GetHeader().height*stride-40;
+			hdr.bfSize = sizeof(hdr) + sizeof(ihdr) + sizeof(CTABLE_255) + af.GetHeader().height*stride - 40;
 			hdr.bfType = 19778;
 
 			ihdr.biBitCount = 8;
@@ -637,21 +649,21 @@ public:
 			int offset = sizeof(hdr) + sizeof(ihdr) + sizeof(CTABLE_255);
 
 			char ch = 0;
-			while (offset < hdr.bfOffBits)
+			while (offset < static_cast<int>(hdr.bfOffBits))
 			{
 				offset++;
 				dst.write(&ch, 1);
 			}
 
-			for (int y = af.GetHeader().height-1; y >= 0; y--)
+			for (int y = af.GetHeader().height - 1; y >= 0; y--)
 			{
-				for (int x = 0; x < af.GetHeader().width; x++)
+				for (int x = 0; x < static_cast<int>(af.GetHeader().width); x++)
 				{
 					ch = af.GetValue(x, y);
 					dst.write(&ch, 1);
 				}
 				ch = 0;
-				offset = af.GetHeader().width;
+				offset = static_cast<int>(af.GetHeader().width);
 				while (offset < stride)
 				{
 					offset++;
@@ -668,8 +680,8 @@ public:
 		HDC hdc = GetDC(NULL);
 		ArtFrame& af = frame_data[f_num];
 		CTABLE_255& ap = palette_data[p_num];
-		for(int y=0;y<af.GetHeader().height;y++)
-			for (int x = 0; x < af.GetHeader().width; x++)
+		for (int y = 0; y<static_cast<int>(af.GetHeader().height); y++)
+			for (int x = 0; x < static_cast<int>(af.GetHeader().width); x++)
 			{
 				BYTE b = af.GetValue(x, y);
 				SetPixelV(hdc, x, y, RGB(ap.colors[b].r, ap.colors[b].g, ap.colors[b].b));
@@ -698,16 +710,24 @@ int main(int argc, char* argv[])
 
 	dst_name = argv[2];
 
-	string ext = src_name.substr(src_name.size() - 3, 3);
-	std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-	if (ext == std::string("art"))
+	try
 	{
-		af.LoadArt(src_name);
-		af.SaveBMPS(dst_name);
+
+		string ext = src_name.substr(src_name.size() - 3, 3);
+		std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+		if (ext == std::string("art"))
+		{
+			af.LoadArt(src_name);
+			af.SaveBMPS(dst_name);
+		}
+		else
+		{
+			af.LoadBMPS(src_name);
+			af.SaveArt(dst_name);
+		}
 	}
-	else
+	catch (MissingFile mf)
 	{
-		af.LoadBMPS(src_name);
-		af.SaveArt(dst_name);
+		std::cout << "Missing file : " << mf.filename << "\r\n";
 	}
 }
