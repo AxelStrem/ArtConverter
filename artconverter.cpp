@@ -436,48 +436,59 @@ public:
 				std::ifstream src;
 				src.open(oss.str(), std::ios_base::binary);
 
-				if (!src)
-					throw MissingFile{oss.str()};
-
-				src.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
-				src.read(reinterpret_cast<char*>(&ihdr), sizeof(ihdr));
-
-				CTABLE_255 ignore;
-				src.read(reinterpret_cast<char*>(&ignore), sizeof(ignore));
-
-				int offset = sizeof(hdr) + sizeof(ihdr) + sizeof(ignore);
-				unsigned char ch;
-
-				int height = ihdr.biHeight;
-				int width = ihdr.biWidth;
-				int offbits = hdr.bfOffBits;
-
-				int stride = ((width + 3) / 4) * 4;
-
-				while (offset < static_cast<int>(hdr.bfOffBits))
+				if (src)
 				{
-					offset++;
-					src.read(reinterpret_cast<char*>(&ch), 1);
-				}
+					src.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
+					src.read(reinterpret_cast<char*>(&ihdr), sizeof(ihdr));
 
-				af.SetSize(width, height);
+					CTABLE_255 ignore;
+					src.read(reinterpret_cast<char*>(&ignore), sizeof(ignore));
 
-				for (int i = 0; i < height; i++)
-				{
-					for (int j = 0; j < width; j++)
-					{
-						src.read(reinterpret_cast<char*>(&ch), 1);
-						af.SetValue(j, i, ch);
-					}
-					offset = width;
-					while (offset < stride)
+					int offset = sizeof(hdr) + sizeof(ihdr) + sizeof(ignore);
+					unsigned char ch;
+
+					int height = ihdr.biHeight;
+					int width = ihdr.biWidth;
+					int offbits = hdr.bfOffBits;
+
+					int stride = ((width + 3) / 4) * 4;
+
+					while (offset < static_cast<int>(hdr.bfOffBits))
 					{
 						offset++;
 						src.read(reinterpret_cast<char*>(&ch), 1);
 					}
-				}
 
-				src.close();
+					af.SetSize(width, height);
+
+					for (int i = 0; i < height; i++)
+					{
+						for (int j = 0; j < width; j++)
+						{
+							src.read(reinterpret_cast<char*>(&ch), 1);
+							af.SetValue(j, i, ch);
+						}
+						offset = width;
+						while (offset < stride)
+						{
+							offset++;
+							src.read(reinterpret_cast<char*>(&ch), 1);
+						}
+					}
+
+					src.close();
+				}
+				else
+				{
+					af.SetSize(6, 6);
+					for (int i = 0; i < 6; i++)
+					{
+						for (int j = 0; j < 6; j++)
+						{
+							af.SetValue(j, i, 0);
+						}
+					}
+				}
 			}
 	}
 
